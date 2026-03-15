@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, abort, session as flask_session, redirect
 
 from models import (
@@ -52,8 +52,10 @@ def _adjust_stock(session, product_id, filled_delta=0, empty_delta=0):
     return s
 
 
+_IST = timezone(timedelta(hours=5, minutes=30))
+
 def _now_str():
-    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return datetime.now(_IST).strftime('%Y-%m-%d %H:%M:%S')
 
 def _add_history(session, product_id, firm_id, action, details=''):
     session.add(ProductHistory(

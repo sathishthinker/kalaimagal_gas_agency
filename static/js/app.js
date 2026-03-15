@@ -21,12 +21,13 @@ let connectionMode = 'new';
 // --- Date/Time Helpers ---
 function formatDateTime(iso) {
     if (!iso) return '';
-    const d = new Date(iso.replace(' ', 'T'));
-    if (isNaN(d)) return iso;
-    return d.toLocaleString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true
-    });
+    const m = iso.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})/);
+    if (!m) return iso.substring(0, 10);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const h = parseInt(m[4]), min = m[5];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12  = h % 12 || 12;
+    return `${parseInt(m[3])} ${months[parseInt(m[2])-1]} ${m[1]}, ${h12}:${min} ${ampm}`;
 }
 function dateOnly(iso) {
     return iso ? iso.substring(0, 10) : '';
