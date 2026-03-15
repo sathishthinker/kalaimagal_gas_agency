@@ -1,15 +1,16 @@
 import json
 import os
 from datetime import date
-from flask import Flask, request, jsonify, render_template, abort
+from flask import Flask, request, jsonify, render_template, abort, session as flask_session, redirect
 
 from models import (
     init_db, seed_db,
-    Firm, Product, Stock, Customer, Transaction, InventoryLog, ProductHistory
+    Firm, Product, Stock, Customer, Transaction, InventoryLog, ProductHistory, User
 )
 
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 
 try:
     engine, Session = init_db()
@@ -125,6 +126,48 @@ def _get_firm_data(session, firm_id):
         'transactions':  [_serialize_transaction(t) for t in txns],
         'inventoryLogs': [_serialize_inv_log(l) for l in logs],
     }
+
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+@app.before_request
+def require_login():
+    public = {'/login', '/logout'}
+    if request.path in public:
+        return None
+    if not flask_session.get('user_id'):
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        return redirect('/login')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if flask_session.get('user_id'):
+        return redirect('/')
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        s = Session()
+        try:
+            user = s.query(User).filter_by(username=username).first()
+            if user and user.check_password(password):
+                flask_session['user_id'] = user.id
+                flask_session['username'] = user.username
+                return redirect('/')
+            error = 'Invalid username or password'
+        finally:
+            Session.remove()
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    flask_session.clear()
+    return redirect('/login')
 
 
 # ---------------------------------------------------------------------------

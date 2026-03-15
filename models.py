@@ -1,10 +1,12 @@
 import json
+import os
 from datetime import date, datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Text, Date, Boolean,
     ForeignKey
 )
 from sqlalchemy.orm import declarative_base, relationship, scoped_session, sessionmaker
+from werkzeug.security import generate_password_hash, check_password_hash
 
 Base = declarative_base()
 
@@ -189,6 +191,20 @@ class ProductHistory(Base):
         }
 
 
+class User(Base):
+    __tablename__ = 'users'
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    username      = Column(String(100), nullable=False, unique=True)
+    password_hash = Column(String(256), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+
 # ---------------------------------------------------------------------------
 # Database setup & seeding
 # ---------------------------------------------------------------------------
@@ -245,6 +261,14 @@ def seed_db(Session):
                         date=date.today(), action='Created',
                         details=f'Initial Price: ₹{p_data["price"]}'
                     ))
+        # Seed default admin user
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+        if not session.query(User).filter_by(username=admin_username).first():
+            u = User(username=admin_username)
+            u.set_password(admin_password)
+            session.add(u)
+
         session.commit()
     finally:
         Session.remove()
