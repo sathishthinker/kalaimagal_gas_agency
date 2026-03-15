@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GasTrack - Cylinder Delivery Manager</title>
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { slate: { 850: '#151f32' } } } }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            body * { visibility: hidden; }
+            .print-modal-content, .print-modal-content * { visibility: visible; }
+            .print-modal-overlay {
+                position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+                background: white; display: block !important; z-index: 9999;
+            }
+            .print-modal-content { box-shadow: none; width: 100%; margin: 0; max-width: none; height: auto !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 h-[100dvh] flex overflow-hidden selection:bg-blue-100 dark:selection:bg-blue-900">
+
+    <!-- Sidebar (Desktop) -->
+    <aside class="hidden lg:flex fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 dark:bg-slate-950 text-white flex-col transition-transform duration-300 border-r border-slate-800">
+        <div class="flex items-start space-x-3 p-6">
+            <div class="bg-blue-600 p-2 rounded-lg mt-1">
+                <i data-lucide="flame" class="text-white"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight" id="sidebar-firm-name">GasTrack</h1>
+                <span class="text-[10px] text-slate-400 block mt-1" id="sidebar-firm-details">Delivery Manager</span>
+            </div>
+        </div>
+        <nav class="flex-1 px-4 space-y-2">
+            <button onclick="switchTab('dashboard')" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" data-tab="dashboard">
+                <i data-lucide="layout-dashboard" size="20"></i><span class="font-medium">Dashboard</span>
+            </button>
+            <button onclick="switchTab('transactions')" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" data-tab="transactions">
+                <i data-lucide="history" size="20"></i><span class="font-medium">History</span>
+            </button>
+            <button onclick="switchTab('stock')" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" data-tab="stock">
+                <i data-lucide="package" size="20"></i><span class="font-medium">Inventory</span>
+            </button>
+            <button onclick="switchTab('customers')" class="nav-item w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors" data-tab="customers">
+                <i data-lucide="users" size="20"></i><span class="font-medium">Customers</span>
+            </button>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-[100dvh] overflow-hidden relative lg:ml-64 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <!-- Header -->
+        <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 lg:hidden">
+                    <div class="bg-blue-600 p-1.5 rounded-lg">
+                        <i data-lucide="flame" class="text-white" size="20"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-sm font-bold text-slate-800 dark:text-white leading-tight" id="mobile-firm-name">GasTrack</h1>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400" id="mobile-firm-loc">Location</p>
+                    </div>
+                </div>
+                <h2 id="page-title" class="hidden lg:block text-xl font-bold text-slate-800 dark:text-white capitalize">Dashboard</h2>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="openNewOrderModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 lg:px-4 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                    <i data-lucide="plus" size="18"></i><span class="hidden sm:inline">New Order</span>
+                </button>
+                <button onclick="openAdminModal()" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative">
+                    <i data-lucide="settings" size="22"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto p-4 lg:p-8 pb-36 lg:pb-8 no-scrollbar">
+            <div class="max-w-6xl mx-auto">
+
+                <!-- Dashboard View -->
+                <div id="view-dashboard" class="space-y-6 fade-in">
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <h3 class="font-bold text-slate-700 dark:text-slate-200 flex items-center text-sm md:text-base">
+                                <i data-lucide="filter" class="mr-2" size="18"></i> Reports & Filter
+                            </h3>
+                            <div class="flex flex-wrap gap-2 items-center w-full md:w-auto">
+                                <select id="report-range" onchange="toggleReportCustomDates(this.value); renderDashboard()" class="flex-1 min-w-[120px] p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-200">
+                                    <option value="today" selected>Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                    <option value="year">This Year</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <div id="report-custom-dates" class="hidden flex gap-2 items-center w-full md:w-auto mt-2 md:mt-0">
+                                    <input type="date" id="report-start" onchange="renderDashboard()" class="flex-1 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+                                    <span class="text-slate-400">-</span>
+                                    <input type="date" id="report-end" onchange="renderDashboard()" class="flex-1 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-xs focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+                                </div>
+                                <button type="button" onclick="generateReport()" class="bg-slate-800 dark:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 dark:hover:bg-slate-600 flex items-center gap-2 whitespace-nowrap active:bg-slate-900">
+                                    <i data-lucide="download" size="16"></i> <span class="hidden sm:inline">PDF</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="dashboard-stats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+                    <div class="grid grid-cols-1 gap-6">
+                        <div class="space-y-4">
+                            <h3 class="font-semibold text-lg text-slate-800 dark:text-slate-200">Stock Distribution</h3>
+                            <div id="dashboard-stock-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <h3 class="font-semibold text-lg text-slate-800 dark:text-slate-200">System Alerts</h3>
+                        <div id="dashboard-alerts" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 min-h-[60px]"></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-semibold text-lg text-slate-800 dark:text-slate-200">Filtered Transactions</h3>
+                            <button type="button" onclick="switchTab('transactions')" class="text-sm text-blue-600 hover:underline">View All</button>
+                        </div>
+                        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left whitespace-nowrap">
+                                    <thead class="bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-medium">
+                                        <tr><th class="p-4">Customer</th><th class="p-4">Details</th><th class="p-4">Total</th><th class="p-4">Status</th></tr>
+                                    </thead>
+                                    <tbody id="dashboard-recent-table" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transactions View -->
+                <div id="view-transactions" class="space-y-6 hidden fade-in">
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-200">History</h2>
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="relative flex-1 mr-4">
+                                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size="16"></i>
+                                <input type="text" id="trans-search" oninput="renderTransactions()" placeholder="Search by Transaction ID or Customer Name..." class="w-full pl-10 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-slate-50 dark:bg-slate-800 dark:text-slate-200">
+                            </div>
+                            <button type="button" onclick="generateReport()" class="bg-slate-800 dark:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 dark:hover:bg-slate-600 flex items-center gap-2 whitespace-nowrap active:bg-slate-900">
+                                <i data-lucide="download" size="16"></i> <span class="hidden sm:inline">PDF Report</span><span class="sm:hidden">PDF</span>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Period</label>
+                                <select id="trans-filter-date" onchange="toggleTransDateInputs(this.value); renderTransactions()" class="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-200">
+                                    <option value="all">All Time</option>
+                                    <option value="today">Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                    <option value="year">This Year</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+                            <div id="trans-filter-custom" class="hidden md:col-span-2 grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Start</label>
+                                    <input type="date" id="trans-filter-start" onchange="renderTransactions()" class="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-slate-200">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">End</label>
+                                    <input type="date" id="trans-filter-end" onchange="renderTransactions()" class="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-slate-200">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Customer</label>
+                                <select id="trans-filter-cust" onchange="renderTransactions()" class="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-200">
+                                    <option value="all">All Customers</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="resetTransFilters()" class="w-full md:w-auto p-2 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-sm flex justify-center items-center gap-2">
+                                    <i data-lucide="refresh-ccw" size="14"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hidden md:block bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left whitespace-nowrap">
+                                <thead class="bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-medium">
+                                    <tr>
+                                        <th class="p-4">ID</th><th class="p-4">Date</th><th class="p-4">Customer</th>
+                                        <th class="p-4">Details</th><th class="p-4 text-right">Total</th>
+                                        <th class="p-4 text-center">Status</th><th class="p-4 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactions-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="transactions-mobile-list" class="md:hidden space-y-4 pb-20"></div>
+                    <div id="trans-no-results" class="hidden p-8 text-center text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                        <p>No transactions found.</p>
+                    </div>
+                </div>
+
+                <!-- Inventory View -->
+                <div id="view-stock" class="space-y-6 hidden fade-in">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-200">Inventory</h2>
+                        <button type="button" onclick="openAddCylinderModal()" class="flex items-center space-x-1 text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm font-medium">
+                            <i data-lucide="plus" size="16"></i><span>Stock Init</span>
+                        </button>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-semibold flex items-center text-slate-700 dark:text-slate-200">
+                                <i data-lucide="tags" class="mr-2 text-purple-500" size="18"></i> Products
+                            </h3>
+                            <button onclick="openProductModal()" class="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center font-medium">
+                                <i data-lucide="plus" size="14" class="mr-1"></i> Add
+                            </button>
+                        </div>
+                        <div class="hidden md:block overflow-x-auto">
+                            <table class="w-full text-sm text-left whitespace-nowrap">
+                                <thead class="bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-medium border-b border-slate-100 dark:border-slate-800">
+                                    <tr><th class="p-3">ID</th><th class="p-3">Label</th><th class="p-3">Price</th><th class="p-3 text-right">Actions</th></tr>
+                                </thead>
+                                <tbody id="product-catalog-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                            </table>
+                        </div>
+                        <div id="product-catalog-mobile" class="md:hidden space-y-3"></div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:p-6">
+                        <h3 class="font-semibold mb-4 flex items-center text-sm md:text-base text-slate-800 dark:text-slate-200">
+                            <i data-lucide="package" class="mr-2 text-blue-500" size="18"></i> Warehouse Stock
+                        </h3>
+                        <div id="stock-progress-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Send Empties -->
+                        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-orange-100 dark:border-orange-900/30 p-4 md:p-6">
+                            <h3 class="font-semibold mb-4 flex items-center text-orange-700 dark:text-orange-400">
+                                <i data-lucide="upload" class="mr-2" size="18"></i> Send Empties
+                            </h3>
+                            <form onsubmit="handleInventoryAction(event, 'OUT')" class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-xs font-medium text-slate-600 dark:text-slate-400">Items</label>
+                                        <button type="button" onclick="addInventoryRow('send-empties-rows')" class="text-xs text-orange-600 dark:text-orange-400 flex items-center p-1">
+                                            <i data-lucide="plus" size="12" class="mr-1"></i> Add
+                                        </button>
+                                    </div>
+                                    <div id="send-empties-rows" class="space-y-2"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Vehicle No</label>
+                                    <input type="text" name="vehicle" placeholder="TN-XX-XXXX" class="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none uppercase dark:bg-slate-800 dark:text-slate-200" required>
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-sm text-sm font-medium active:bg-orange-800">Record Outgoing</button>
+                            </form>
+                        </div>
+                        <!-- Receive Filled -->
+                        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-green-100 dark:border-green-900/30 p-4 md:p-6">
+                            <h3 class="font-semibold mb-4 flex items-center text-green-700 dark:text-green-400">
+                                <i data-lucide="download" class="mr-2" size="18"></i> Receive Filled
+                            </h3>
+                            <form onsubmit="handleInventoryAction(event, 'IN')" class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-xs font-medium text-slate-600 dark:text-slate-400">Items</label>
+                                        <button type="button" onclick="addInventoryRow('receive-filled-rows')" class="text-xs text-green-600 dark:text-green-400 flex items-center p-1">
+                                            <i data-lucide="plus" size="12" class="mr-1"></i> Add
+                                        </button>
+                                    </div>
+                                    <div id="receive-filled-rows" class="space-y-2"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Vehicle No</label>
+                                    <input type="text" name="vehicle" placeholder="TN-XX-XXXX" class="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none uppercase dark:bg-slate-800 dark:text-slate-200" required>
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm font-medium active:bg-green-800">Record Incoming</button>
+                            </form>
+                        </div>
+                    </div>
+                    <!-- Inventory Logs -->
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <div class="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                            <h3 class="font-semibold text-slate-700 dark:text-slate-200">Recent Movements</h3>
+                        </div>
+                        <div class="hidden md:block overflow-x-auto">
+                            <table class="w-full text-sm text-left whitespace-nowrap">
+                                <thead class="bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-medium border-b border-slate-100 dark:border-slate-800">
+                                    <tr><th class="p-4">Date</th><th class="p-4">Action</th><th class="p-4">Details</th><th class="p-4">Vehicle</th><th class="p-4 text-center">Receipt</th></tr>
+                                </thead>
+                                <tbody id="inventory-logs-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                            </table>
+                        </div>
+                        <div id="inventory-logs-mobile" class="md:hidden p-4 space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Customers View -->
+                <div id="view-customers" class="space-y-6 hidden fade-in">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                        <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-200">Customers</h2>
+                        <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                            <div class="relative w-full sm:w-64">
+                                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size="16"></i>
+                                <input type="text" id="cust-search" oninput="renderCustomers()" placeholder="Search name, phone..." class="w-full pl-9 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-200">
+                            </div>
+                            <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                                <button onclick="toggleFrequentFilter()" id="btn-filter-frequent" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap">
+                                    <i data-lucide="star" size="14"></i> Frequent
+                                </button>
+                                <button type="button" onclick="openAddCustomerModal()" class="flex items-center space-x-2 bg-slate-800 dark:bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 shadow-sm active:bg-slate-900 whitespace-nowrap">
+                                    <i data-lucide="plus" size="16"></i><span>Add</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="customer-selection-bar" class="hidden bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 p-3 rounded-xl flex justify-between items-center text-sm text-blue-800 dark:text-blue-300 mb-2">
+                        <span class="font-medium"><span id="selected-count">0</span> customers selected</span>
+                        <button onclick="clearCustomerSelection()" class="text-xs underline hover:text-blue-600">Clear Selection</button>
+                    </div>
+                    <div class="hidden md:block bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left whitespace-nowrap">
+                                <thead class="bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-medium">
+                                    <tr>
+                                        <th class="p-4 w-10"><input type="checkbox" onchange="toggleSelectAllCustomers(this.checked)" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"></th>
+                                        <th class="p-4">Name</th><th class="p-4">Active Plans</th><th class="p-4">Contact</th><th class="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="customers-list-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="customers-mobile-list" class="md:hidden space-y-4"></div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Navigation (Mobile) -->
+    <nav class="lg:hidden fixed bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-around py-2 pb-safe z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button onclick="switchTab('dashboard')" class="nav-item-mobile flex flex-col items-center p-2 text-slate-400 transition-colors" data-tab="dashboard">
+            <i data-lucide="layout-dashboard" size="20"></i><span class="text-[10px] font-medium mt-1">Home</span>
+        </button>
+        <button onclick="switchTab('transactions')" class="nav-item-mobile flex flex-col items-center p-2 text-slate-400 transition-colors" data-tab="transactions">
+            <i data-lucide="history" size="20"></i><span class="text-[10px] font-medium mt-1">History</span>
+        </button>
+        <button onclick="switchTab('stock')" class="nav-item-mobile flex flex-col items-center p-2 text-slate-400 transition-colors" data-tab="stock">
+            <i data-lucide="package" size="20"></i><span class="text-[10px] font-medium mt-1">Stock</span>
+        </button>
+        <button onclick="switchTab('customers')" class="nav-item-mobile flex flex-col items-center p-2 text-slate-400 transition-colors" data-tab="customers">
+            <i data-lucide="users" size="20"></i><span class="text-[10px] font-medium mt-1">People</span>
+        </button>
+    </nav>
+
+    <!-- ===================== MODALS ===================== -->
+
+    <!-- New Order Modal -->
+    <div id="order-modal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-lg p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 sm:mb-6 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <h3 class="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-200">New Order</h3>
+                <button type="button" onclick="closeNewOrderModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x" size="20"></i></button>
+            </div>
+            <form id="order-form" onsubmit="submitOrder(event)" class="flex-1 overflow-y-auto sm:overflow-visible space-y-4 pr-1 pb-20 sm:pb-0">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Customer</label>
+                    <select id="order-customer" required class="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200">
+                        <option value="">Select Customer</option>
+                    </select>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Items</label>
+                        <button type="button" onclick="addOrderItemRow()" class="text-sm text-blue-600 font-medium hover:underline flex items-center"><i data-lucide="plus" size="16" class="mr-1"></i> Add</button>
+                    </div>
+                    <div id="order-items-container" class="space-y-3"></div>
+                </div>
+                <div class="pt-4 border-t border-slate-100 dark:border-slate-800 mt-auto">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold shadow-md active:scale-[0.98] transition-transform">Confirm Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Product Modal -->
+    <div id="product-modal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-md p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200" id="product-modal-title">Product</h3>
+                <button type="button" onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="handleSaveProduct(event)" class="space-y-4 flex-1">
+                <input type="hidden" id="prod-mode" value="add">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ID</label>
+                    <input type="text" id="prod-id" name="id" required class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Label</label>
+                    <input type="text" id="prod-label" name="label" required class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Price (₹)</label>
+                    <input type="number" id="prod-price" name="price" inputmode="decimal" required min="0" step="0.01" class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+                </div>
+                <div class="pt-4 mt-auto">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold shadow-md">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulk Stock Init Modal -->
+    <div id="add-cylinder-modal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-2xl p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">Stock Init</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Add initial quantities</p>
+                </div>
+                <button type="button" onclick="closeAddCylinderModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="handleSaveCylinderStock(event)" class="flex-1 overflow-y-auto space-y-4 pb-20 sm:pb-0">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Entries</label>
+                        <button type="button" onclick="addStockRow()" class="text-sm text-blue-600 font-medium flex items-center"><i data-lucide="plus" size="16" class="mr-1"></i> Add</button>
+                    </div>
+                    <div id="add-stock-rows-container" class="space-y-3"></div>
+                </div>
+                <div class="pt-4 border-t border-slate-100 dark:border-slate-800 mt-auto">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold shadow-md">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Customer Modal -->
+    <div id="add-customer-modal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-md p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">New Customer</h3>
+                <button type="button" onclick="closeAddCustomerModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="handleAddCustomer(event)" class="flex-1 overflow-y-auto space-y-4 pb-20 sm:pb-0">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name</label>
+                    <input type="text" name="name" required class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200 uppercase">
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Connection Type</label>
+                    <div class="flex gap-2 mb-3">
+                        <button type="button" onclick="setConnectionMode('new')" id="btn-conn-new" class="flex-1 py-2 text-xs font-bold rounded-lg border transition-all">New Connection</button>
+                        <button type="button" onclick="setConnectionMode('existing')" id="btn-conn-old" class="flex-1 py-2 text-xs font-bold rounded-lg border transition-all">Existing Cust.</button>
+                    </div>
+                    <p id="conn-desc" class="text-sm mb-3 leading-tight"></p>
+                    <div class="flex justify-between items-center mb-2 mt-4 border-t border-slate-200 dark:border-slate-700 pt-2">
+                        <label class="text-xs font-bold text-slate-700 dark:text-slate-300">Cylinders (Plan & Stock)</label>
+                        <button type="button" onclick="addConnectionRow()" class="text-xs text-blue-600 flex items-center font-medium"><i data-lucide="plus" size="14" class="mr-1"></i> Add Row</button>
+                    </div>
+                    <div id="connection-setup-rows" class="space-y-2"></div>
+                </div>
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Phone</label>
+                        <input type="tel" name="phone" required class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200" pattern="[0-9]*" maxlength="10">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Address</label>
+                        <textarea name="address" required rows="2" class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200 uppercase"></textarea>
+                    </div>
+                </div>
+                <div class="pt-2 mt-auto">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold shadow-md active:scale-[0.98]">Save Customer & Setup</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Plan Modal -->
+    <div id="change-plan-modal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-md p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">Manage Plans</h3>
+                <button type="button" onclick="closeChangePlanModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <form onsubmit="handleUpdatePlan(event)" class="flex-1 overflow-y-auto space-y-4 pb-20 sm:pb-0">
+                <input type="hidden" id="edit-plan-customer-id">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800/30 text-sm text-blue-800 dark:text-blue-300 mb-4 font-bold text-center" id="edit-plan-customer-name"></div>
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Active Plans</label>
+                        <button type="button" onclick="addPlanRow('edit-cust-plans-container')" class="text-xs text-blue-600 flex items-center"><i data-lucide="plus" size="14" class="mr-1"></i> Add</button>
+                    </div>
+                    <div id="edit-cust-plans-container" class="space-y-2"></div>
+                </div>
+                <div class="pt-4 mt-auto">
+                    <button type="submit" class="w-full bg-slate-800 dark:bg-slate-700 text-white py-3 rounded-xl font-semibold shadow-md">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product History Modal -->
+    <div id="product-history-modal" class="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-2xl p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200" id="history-modal-title">History</h3>
+                <button type="button" onclick="document.getElementById('product-history-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <div class="flex-1 overflow-auto pb-20 sm:pb-0">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-medium">
+                        <tr><th class="p-3">Date</th><th class="p-3">Action</th><th class="p-3">Details</th></tr>
+                    </thead>
+                    <tbody id="product-history-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Modal -->
+    <div id="admin-modal" class="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-md p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800 dark:text-slate-200">Admin Panel</h3>
+                <button type="button" onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto space-y-6 pb-20 sm:pb-0">
+                <div class="space-y-3">
+                    <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Firm Selection</h4>
+                    <label class="flex items-center p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <input type="radio" name="firm-select" value="1" onchange="switchFirm(1)" class="w-4 h-4 text-blue-600 focus:ring-blue-500" checked>
+                        <div class="ml-3">
+                            <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Kalaimagal Gas Agencies</span>
+                            <span class="block text-xs text-slate-500 dark:text-slate-400">Avinashi Road, Tirupur</span>
+                        </div>
+                    </label>
+                    <div class="mt-4 pt-2">
+                        <h5 class="text-xs font-bold text-slate-500 dark:text-slate-500 mb-2 uppercase ml-1">Kalaimagal Gas Services</h5>
+                        <div class="space-y-2 pl-3 border-l-2 border-slate-100 dark:border-slate-800">
+                            <label class="flex items-center p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                <input type="radio" name="firm-select" value="2" onchange="switchFirm(2)" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <div class="ml-3">
+                                    <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Avinashi Hub</span>
+                                    <span class="block text-xs text-slate-500 dark:text-slate-400">Main Location</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                <input type="radio" name="firm-select" value="3" onchange="switchFirm(3)" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <div class="ml-3">
+                                    <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Annur Hub</span>
+                                    <span class="block text-xs text-slate-500 dark:text-slate-400">Branch Location</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <hr class="border-slate-100 dark:border-slate-800">
+                <div class="space-y-3">
+                    <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Data Management</h4>
+                    <button onclick="backupData()" class="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <span class="flex items-center text-sm font-medium text-slate-700 dark:text-slate-200"><i data-lucide="download" size="18" class="mr-3 text-blue-500"></i> Backup Data</span>
+                        <i data-lucide="chevron-right" size="16" class="text-slate-400"></i>
+                    </button>
+                    <div class="relative">
+                        <input type="file" id="restore-file" class="hidden" accept=".json" onchange="restoreData(this)">
+                        <button onclick="document.getElementById('restore-file').click()" class="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                            <span class="flex items-center text-sm font-medium text-slate-700 dark:text-slate-200"><i data-lucide="upload" size="18" class="mr-3 text-purple-500"></i> Restore Data</span>
+                            <i data-lucide="chevron-right" size="16" class="text-slate-400"></i>
+                        </button>
+                    </div>
+                    <button onclick="clearAllData()" class="w-full flex items-center justify-between p-3 rounded-xl border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors">
+                        <span class="flex items-center text-sm font-medium text-red-700 dark:text-red-400"><i data-lucide="refresh-cw" size="18" class="mr-3"></i> Clear All Data</span>
+                    </button>
+                </div>
+                <hr class="border-slate-100 dark:border-slate-800">
+                <div class="space-y-3">
+                    <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Appearance</h4>
+                    <button onclick="toggleDarkMode()" class="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <span class="flex items-center text-sm font-medium text-slate-700 dark:text-slate-200"><i data-lucide="moon" size="18" class="mr-3 text-slate-500"></i> Dark Mode</span>
+                        <div class="w-11 h-6 bg-slate-200 dark:bg-blue-600 rounded-full relative transition-colors">
+                            <div class="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 dark:left-5.5 transition-all shadow-sm"></div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Receipt Modal -->
+    <div id="receipt-modal" class="print-modal-overlay fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div id="receipt-modal-content" class="print-modal-content bg-white rounded-xl shadow-2xl w-full max-w-md m-4 flex flex-col max-h-[90vh] overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-slate-100 no-print">
+                <h3 class="text-lg font-bold text-slate-800">Receipt</h3>
+                <button type="button" onclick="closeReceiptModal()" class="text-slate-400 hover:text-slate-600 p-2"><i data-lucide="x"></i></button>
+            </div>
+            <div id="receipt-print-area" class="p-6 space-y-6 overflow-auto bg-white"></div>
+            <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 no-print">
+                <button type="button" onclick="downloadCurrentReceipt()" class="flex items-center px-4 py-3 bg-slate-800 text-white rounded-xl hover:bg-slate-700 w-full justify-center sm:w-auto">
+                    <i data-lucide="download" size="18" class="mr-2"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer History Modal -->
+    <div id="customer-history-modal" class="fixed inset-0 z-[55] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full h-full sm:h-auto sm:rounded-xl sm:max-w-4xl p-4 sm:p-6 flex flex-col shadow-2xl">
+            <div class="flex justify-between items-start mb-4 border-b dark:border-slate-800 sm:border-none pb-4 sm:pb-0">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200" id="hist-cust-name">History</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400" id="hist-cust-details">Details</p>
+                </div>
+                <button type="button" onclick="document.getElementById('customer-history-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x"></i></button>
+            </div>
+            <div class="flex-1 overflow-auto pb-20 sm:pb-0">
+                <table class="w-full text-sm text-left whitespace-nowrap">
+                    <thead class="bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-medium">
+                        <tr>
+                            <th class="p-3">ID/Date</th><th class="p-3">Details</th>
+                            <th class="p-3 text-right">Amount</th><th class="p-3 text-center">Status</th><th class="p-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hist-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Return / Partial Return Modal -->
+    <div id="return-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-sm m-4 rounded-xl shadow-2xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-slate-200">Return Cylinders</h3>
+                <button type="button" onclick="closeReturnModal()" class="text-slate-400 hover:text-slate-600 p-2 bg-slate-50 dark:bg-slate-800 rounded-full"><i data-lucide="x" size="18"></i></button>
+            </div>
+            <form onsubmit="submitReturn(event)" class="space-y-4">
+                <input type="hidden" id="ret-trans-id">
+                <input type="hidden" id="ret-item-idx">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-500 dark:text-slate-400">Total Taken:</span>
+                        <span class="font-bold text-slate-800 dark:text-slate-200" id="ret-total-filled">0</span>
+                    </div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-slate-500 dark:text-slate-400">Already Returned:</span>
+                        <span class="font-bold text-slate-800 dark:text-slate-200" id="ret-already-empty">0</span>
+                    </div>
+                    <div class="border-t border-blue-200 dark:border-blue-800 my-2"></div>
+                    <div class="flex justify-between font-bold text-blue-700 dark:text-blue-400">
+                        <span>Pending Return:</span><span id="ret-pending-count">0</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Quantity Returning Now</label>
+                    <input type="number" id="ret-qty-input" required min="1" class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-slate-200">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Update Due Date (Optional)</label>
+                    <p class="text-xs text-slate-500 mb-2">If items remain pending, update the deadline.</p>
+                    <input type="date" id="ret-new-due-date" class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold shadow-md transition-colors mt-2">Confirm Return</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300" onclick="closeSuccessModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-2xl max-w-sm w-full mx-4 transform scale-95 transition-all duration-300" onclick="event.stopPropagation()">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 mb-6 animate-bounce-short">
+                <i data-lucide="check" class="h-8 w-8 text-green-600 dark:text-green-400"></i>
+            </div>
+            <div class="text-center">
+                <h3 class="text-2xl font-bold text-slate-800 dark:text-white mb-2">Success!</h3>
+                <p id="success-modal-message" class="text-slate-500 dark:text-slate-400 mb-8 text-sm leading-relaxed">Action completed successfully.</p>
+            </div>
+            <button type="button" onclick="closeSuccessModal()" class="w-full py-3.5 bg-slate-900 dark:bg-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all active:scale-[0.98]">Continue</button>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300" onclick="closeErrorModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl max-w-xs sm:max-w-sm w-full mx-4 transform scale-95 transition-all duration-300 relative" onclick="event.stopPropagation()">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
+            </div>
+            <div class="text-center">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-2">Alert</h3>
+                <p id="error-modal-message" class="text-slate-600 dark:text-slate-300 mb-6 text-sm leading-relaxed"></p>
+            </div>
+            <button type="button" onclick="closeErrorModal()" class="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-semibold transition-colors">Dismiss</button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes bounce-short { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10%); } }
+        .animate-bounce-short { animation: bounce-short 1s ease-in-out infinite; }
+    </style>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
