@@ -18,6 +18,20 @@ let showFrequentOnly = false;
 let currentReceiptData = null;
 let connectionMode = 'new';
 
+// --- Date/Time Helpers ---
+function formatDateTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso.replace(' ', 'T'));
+    if (isNaN(d)) return iso;
+    return d.toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+    });
+}
+function dateOnly(iso) {
+    return iso ? iso.substring(0, 10) : '';
+}
+
 // --- API Helper ---
 async function apiCall(method, path, body = null) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -122,8 +136,9 @@ function filterByRange(txns) {
     const { start, end } = getDateRange();
     if (!start && !end) return txns;
     return txns.filter(t => {
-        if (start && t.date < start) return false;
-        if (end   && t.date > end)   return false;
+        const td = dateOnly(t.date);
+        if (start && td < start) return false;
+        if (end   && td > end)   return false;
         return true;
     });
 }
@@ -285,7 +300,7 @@ async function generateReport() {
         const items = (t.items || []).map(i => `${i.filled}×${i.type}`).join(', ');
         return `<tr>
             <td style="padding:6px 8px;border:1px solid #e2e8f0;">#${t.id}</td>
-            <td style="padding:6px 8px;border:1px solid #e2e8f0;">${t.date}</td>
+            <td style="padding:6px 8px;border:1px solid #e2e8f0;">${formatDateTime(t.created_at || t.date)}</td>
             <td style="padding:6px 8px;border:1px solid #e2e8f0;">${cust ? cust.name : 'Walk-in'}</td>
             <td style="padding:6px 8px;border:1px solid #e2e8f0;">${items}</td>
             <td style="padding:6px 8px;text-align:right;border:1px solid #e2e8f0;">₹${(t.total || 0).toFixed(2)}</td>
@@ -357,13 +372,14 @@ function renderTransactions() {
             const cust = customers.find(c => c.id === t.customerId);
             if (!String(t.id).includes(search) && !(cust && cust.name.toLowerCase().includes(search))) return false;
         }
-        if (dateFilter === 'today'  && t.date !== today)       return false;
-        if (dateFilter === 'week'   && t.date < weekStart)     return false;
-        if (dateFilter === 'month'  && t.date < monthStart)    return false;
-        if (dateFilter === 'year'   && t.date < yearStart)     return false;
+        const td = dateOnly(t.date);
+        if (dateFilter === 'today'  && td !== today)       return false;
+        if (dateFilter === 'week'   && td < weekStart)     return false;
+        if (dateFilter === 'month'  && td < monthStart)    return false;
+        if (dateFilter === 'year'   && td < yearStart)     return false;
         if (dateFilter === 'custom') {
-            if (startDate && t.date < startDate) return false;
-            if (endDate   && t.date > endDate)   return false;
+            if (startDate && td < startDate) return false;
+            if (endDate   && td > endDate)   return false;
         }
         if (custFilter !== 'all' && t.customerId !== parseInt(custFilter)) return false;
         return true;
@@ -389,7 +405,7 @@ function renderTransactions() {
             }).join('');
             return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <td class="p-4 text-slate-500 text-xs">#${t.id}</td>
-                <td class="p-4 text-slate-600 dark:text-slate-400 text-sm">${t.date}</td>
+                <td class="p-4 text-slate-600 dark:text-slate-400 text-sm">${formatDateTime(t.created_at || t.date)}</td>
                 <td class="p-4 font-medium text-slate-800 dark:text-slate-200">${name}</td>
                 <td class="p-4">${detail}</td>
                 <td class="p-4 text-right font-bold text-slate-800 dark:text-slate-200">₹${(t.total || 0).toFixed(2)}</td>
@@ -419,7 +435,7 @@ function renderTransactions() {
                 <div class="flex justify-between items-start mb-2">
                     <div>
                         <p class="font-bold text-slate-800 dark:text-slate-200">${name}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">#${t.id} &bull; ${t.date}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">#${t.id} &bull; ${formatDateTime(t.created_at || t.date)}</p>
                     </div>
                     <div class="flex flex-col items-end gap-1">
                         ${statusBadge(t.status)}
@@ -581,7 +597,7 @@ function showReceiptModal(transId) {
         </div>
         <div class="border-t border-b border-slate-200 py-3 mb-4 text-sm">
             <div class="flex justify-between mb-1"><span class="text-slate-500">Receipt #</span><span class="font-bold">${txn.id}</span></div>
-            <div class="flex justify-between mb-1"><span class="text-slate-500">Date</span><span>${txn.date}</span></div>
+            <div class="flex justify-between mb-1"><span class="text-slate-500">Date</span><span>${formatDateTime(txn.created_at || txn.date)}</span></div>
             <div class="flex justify-between"><span class="text-slate-500">Customer</span><span class="font-medium">${cust ? cust.name : 'Walk-in'}</span></div>
         </div>
         <table class="w-full text-sm mb-4">
@@ -657,7 +673,7 @@ function renderStock() {
                 : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
             const items  = Object.entries(log.items || {}).map(([k, v]) => `${v}×${k}`).join(', ');
             return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                <td class="p-4 text-slate-500 text-sm">${log.date}</td>
+                <td class="p-4 text-slate-500 text-sm">${formatDateTime(log.created_at || log.date)}</td>
                 <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${badge}">${isIn ? '⬇ IN' : '⬆ OUT'}</span></td>
                 <td class="p-4 text-sm text-slate-700 dark:text-slate-300">${items}</td>
                 <td class="p-4 text-sm text-slate-600 dark:text-slate-400">${log.vehicle || '-'}</td>
@@ -680,7 +696,7 @@ function renderStock() {
                 </div>
                 <div class="flex-1">
                     <p class="font-medium text-slate-800 dark:text-slate-200 text-sm">${isIn ? 'Received' : 'Sent'}: ${items}</p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">${log.date} &bull; ${log.vehicle || 'No vehicle'}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">${formatDateTime(log.created_at || log.date)} &bull; ${log.vehicle || 'No vehicle'}</p>
                 </div>
                 <button onclick="showInventoryReceipt(${log.id})" class="p-1.5 text-slate-400 hover:text-blue-600"><i data-lucide="receipt" size="14"></i></button>
             </div>`;
@@ -851,7 +867,7 @@ async function showProductHistory(sizeId) {
             tbody.innerHTML = hist.length === 0
                 ? `<tr><td colspan="3" class="p-3 text-center text-slate-400">No history.</td></tr>`
                 : hist.map(h => `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td class="p-3 text-sm text-slate-500">${h.date}</td>
+                    <td class="p-3 text-sm text-slate-500">${formatDateTime(h.created_at || h.date)}</td>
                     <td class="p-3 text-sm font-medium text-slate-800 dark:text-slate-200">${h.action}</td>
                     <td class="p-3 text-sm text-slate-600 dark:text-slate-400">${h.details}</td>
                 </tr>`).join('');
@@ -920,7 +936,7 @@ function showInventoryReceipt(logId) {
         </div>
         <div class="border-t border-b border-slate-200 py-3 mb-4 text-sm">
             <div class="flex justify-between mb-1"><span class="text-slate-500">Log #</span><span class="font-bold">${log.id}</span></div>
-            <div class="flex justify-between mb-1"><span class="text-slate-500">Date</span><span>${log.date}</span></div>
+            <div class="flex justify-between mb-1"><span class="text-slate-500">Date</span><span>${formatDateTime(log.created_at || log.date)}</span></div>
             <div class="flex justify-between mb-1">
                 <span class="text-slate-500">Type</span>
                 <span class="font-bold ${isIn ? 'text-green-600' : 'text-orange-600'}">${isIn ? 'RECEIVED (IN)' : 'SENT (OUT)'}</span>
@@ -1203,7 +1219,7 @@ function showCustomerHistory(custId) {
             return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <td class="p-3">
                     <p class="font-medium text-slate-800 dark:text-slate-200">#${t.id}</p>
-                    <p class="text-xs text-slate-400">${t.date}</p>
+                    <p class="text-xs text-slate-400">${formatDateTime(t.created_at || t.date)}</p>
                 </td>
                 <td class="p-3 text-sm text-slate-600 dark:text-slate-400">${detail}</td>
                 <td class="p-3 text-right font-bold text-slate-800 dark:text-slate-200">₹${(t.total || 0).toFixed(2)}</td>

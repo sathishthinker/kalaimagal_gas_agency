@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date
+from datetime import date, datetime
 from flask import Flask, request, jsonify, render_template, abort, session as flask_session, redirect
 
 from models import (
@@ -52,10 +52,13 @@ def _adjust_stock(session, product_id, filled_delta=0, empty_delta=0):
     return s
 
 
+def _now_str():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
 def _add_history(session, product_id, firm_id, action, details=''):
     session.add(ProductHistory(
         product_id=product_id, firm_id=firm_id,
-        date=date.today(), action=action, details=details
+        date=date.today(), created_at=_now_str(), action=action, details=details
     ))
 
 
@@ -397,7 +400,7 @@ def inventory_send(firm_id):
             stk = _adjust_stock(s, p.id, empty_delta=-qty)
             stk.pending_qty += qty
 
-        log = InventoryLog(firm_id=firm_id, date=date.today(),
+        log = InventoryLog(firm_id=firm_id, date=date.today(), created_at=_now_str(),
                            log_type='OUT', vehicle=vehicle)
         log.set_items(items)
         s.add(log)
@@ -449,7 +452,7 @@ def inventory_receive(firm_id):
             stk = _adjust_stock(s, p.id, filled_delta=qty)
             stk.pending_qty = max(0, stk.pending_qty - qty)
 
-        log = InventoryLog(firm_id=firm_id, date=date.today(),
+        log = InventoryLog(firm_id=firm_id, date=date.today(), created_at=_now_str(),
                            log_type='IN', vehicle=vehicle)
         log.set_items(items)
         s.add(log)
@@ -544,7 +547,7 @@ def create_customer(firm_id):
                     'dueDate': '', 'returnedDate': ''
                 })
             txn = Transaction(firm_id=firm_id, customer_id=cust.id,
-                              date=today, total=total_cost, status='Delivered')
+                              date=today, created_at=_now_str(), total=total_cost, status='Delivered')
             txn.set_items(txn_items)
             s.add(txn)
         else:
@@ -554,7 +557,7 @@ def create_customer(firm_id):
                 if p:
                     _adjust_stock(s, p.id, empty_delta=qty)
                     items_dict[sid] = qty
-            log = InventoryLog(firm_id=firm_id, date=today,
+            log = InventoryLog(firm_id=firm_id, date=today, created_at=_now_str(),
                                log_type='IN', vehicle='OLD CUST DEPOSIT')
             log.set_items(items_dict)
             s.add(log)
@@ -634,7 +637,7 @@ def create_transaction(firm_id):
                 return _err(str(e))
 
         txn = Transaction(firm_id=firm_id, customer_id=customer_id,
-                          date=date.today(), total=total, status='Delivered')
+                          date=date.today(), created_at=_now_str(), total=total, status='Delivered')
         txn.set_items(items)
         s.add(txn)
         s.commit()

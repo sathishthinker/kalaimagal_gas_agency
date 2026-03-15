@@ -116,6 +116,7 @@ class Transaction(Base):
     firm_id     = Column(Integer, ForeignKey('firms.id'), nullable=False)
     customer_id = Column(Integer, ForeignKey('customers.id'), nullable=True)
     date        = Column(Date, nullable=False, default=date.today)
+    created_at  = Column(String(30), default='')
     # JSON list: [{"type": "12kg", "filled": 2, "empty": 0,
     #              "dueDate": "2026-03-20", "returnedDate": ""}]
     items       = Column(Text, nullable=False, default='[]')
@@ -136,6 +137,7 @@ class Transaction(Base):
             'firm_id':    self.firm_id,
             'customerId': self.customer_id,
             'date':       self.date.isoformat() if self.date else '',
+            'created_at': self.created_at or '',
             'items':      self.get_items(),
             'total':      self.total,
             'status':     self.status,
@@ -145,11 +147,12 @@ class Transaction(Base):
 class InventoryLog(Base):
     __tablename__ = 'inventory_logs'
 
-    id       = Column(Integer, primary_key=True, autoincrement=True)
-    firm_id  = Column(Integer, ForeignKey('firms.id'), nullable=False)
-    date     = Column(Date, nullable=False, default=date.today)
-    log_type = Column(String(5), nullable=False)   # 'IN' or 'OUT'
-    vehicle  = Column(String(100), default='')
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    firm_id    = Column(Integer, ForeignKey('firms.id'), nullable=False)
+    date       = Column(Date, nullable=False, default=date.today)
+    created_at = Column(String(30), default='')
+    log_type   = Column(String(5), nullable=False)   # 'IN' or 'OUT'
+    vehicle    = Column(String(100), default='')
     # JSON dict: {"12kg": 5, "15kg": 3}  (keyed by size_id)
     items    = Column(Text, nullable=False, default='{}')
 
@@ -163,8 +166,9 @@ class InventoryLog(Base):
         return {
             'id':      self.id,
             'firm_id': self.firm_id,
-            'date':    self.date.isoformat() if self.date else '',
-            'type':    self.log_type,
+            'date':       self.date.isoformat() if self.date else '',
+            'created_at': self.created_at or '',
+            'type':       self.log_type,
             'vehicle': self.vehicle or '',
             'items':   self.get_items(),
         }
@@ -177,6 +181,7 @@ class ProductHistory(Base):
     product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
     firm_id    = Column(Integer, ForeignKey('firms.id'), nullable=False)
     date       = Column(Date, nullable=False, default=date.today)
+    created_at = Column(String(30), default='')
     action     = Column(String(100), nullable=False)
     details    = Column(Text, default='')
 
@@ -188,6 +193,7 @@ class ProductHistory(Base):
             'productId':  self.product_id,
             'firm_id':    self.firm_id,
             'date':       self.date.isoformat() if self.date else '',
+            'created_at': self.created_at or '',
             'action':     self.action,
             'details':    self.details or '',
         }
@@ -235,13 +241,20 @@ def init_db(db_path=None):
     )
     Base.metadata.create_all(engine)
 
-    # Migrate: add pending_qty to stocks if not present (existing databases)
+    # Migrations: add new columns to existing databases
+    migrations = [
+        'ALTER TABLE stocks ADD COLUMN pending_qty INTEGER NOT NULL DEFAULT 0',
+        "ALTER TABLE transactions ADD COLUMN created_at TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE inventory_logs ADD COLUMN created_at TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE product_history ADD COLUMN created_at TEXT NOT NULL DEFAULT ''",
+    ]
     with engine.connect() as conn:
-        try:
-            conn.execute(text('ALTER TABLE stocks ADD COLUMN pending_qty INTEGER NOT NULL DEFAULT 0'))
-            conn.commit()
-        except Exception:
-            pass  # Column already exists
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
 
     session_factory = sessionmaker(bind=engine)
     Session = scoped_session(session_factory)
