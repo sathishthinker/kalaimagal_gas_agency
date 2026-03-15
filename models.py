@@ -3,7 +3,7 @@ import os
 from datetime import date, datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Text, Date, Boolean,
-    ForeignKey
+    ForeignKey, text
 )
 from sqlalchemy.orm import declarative_base, relationship, scoped_session, sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -234,6 +234,15 @@ def init_db(db_path=None):
         connect_args={'check_same_thread': False},
     )
     Base.metadata.create_all(engine)
+
+    # Migrate: add pending_qty to stocks if not present (existing databases)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text('ALTER TABLE stocks ADD COLUMN pending_qty INTEGER NOT NULL DEFAULT 0'))
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
+
     session_factory = sessionmaker(bind=engine)
     Session = scoped_session(session_factory)
     return engine, Session
