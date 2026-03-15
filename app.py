@@ -100,13 +100,15 @@ def _get_firm_data(session, firm_id):
 
     products = session.query(Product).filter_by(firm_id=firm_id, active=True).all()
 
-    stock_dict = {}
-    empty_dict = {}
+    stock_dict   = {}
+    empty_dict   = {}
+    pending_dict = {}
     for p in products:
         sid = p.size_id
         stk = p.stock
-        stock_dict[sid] = stk.filled_qty if stk else 0
-        empty_dict[sid] = stk.empty_qty  if stk else 0
+        stock_dict[sid]   = stk.filled_qty  if stk else 0
+        empty_dict[sid]   = stk.empty_qty   if stk else 0
+        pending_dict[sid] = stk.pending_qty if stk else 0
 
     customers = session.query(Customer).filter_by(firm_id=firm_id, active=True).all()
     txns      = (session.query(Transaction)
@@ -122,6 +124,7 @@ def _get_firm_data(session, firm_id):
                           for p in products],
         'stock':         stock_dict,
         'emptyStock':    empty_dict,
+        'pendingStock':  pending_dict,
         'customers':     [_serialize_customer(c) for c in customers],
         'transactions':  [_serialize_transaction(t) for t in txns],
         'inventoryLogs': [_serialize_inv_log(l) for l in logs],
@@ -391,7 +394,8 @@ def inventory_send(firm_id):
         for size_id, qty in items.items():
             qty = int(qty)
             p   = _get_product_by_size(s, firm_id, size_id)
-            _adjust_stock(s, p.id, empty_delta=-qty)
+            stk = _adjust_stock(s, p.id, empty_delta=-qty)
+            stk.pending_qty += qty
 
         log = InventoryLog(firm_id=firm_id, date=date.today(),
                            log_type='OUT', vehicle=vehicle)
@@ -426,12 +430,24 @@ def inventory_receive(firm_id):
         if not vehicle:
             return _err('Vehicle number is required')
 
+        # Validate: cannot receive more than what was sent out
         for size_id, qty in items.items():
             qty = int(qty)
             p   = _get_product_by_size(s, firm_id, size_id)
             if not p:
                 return _err(f"Product '{size_id}' not found")
-            _adjust_stock(s, p.id, filled_delta=qty)
+            stk     = s.query(Stock).filter_by(product_id=p.id).first()
+            pending = stk.pending_qty if stk else 0
+            if qty > pending:
+                return _err(
+                    f'Cannot receive {qty} for {p.label}. '
+                    f'Only {pending} pending (empties sent out).')
+
+        for size_id, qty in items.items():
+            qty = int(qty)
+            p   = _get_product_by_size(s, firm_id, size_id)
+            stk = _adjust_stock(s, p.id, filled_delta=qty)
+            stk.pending_qty = max(0, stk.pending_qty - qty)
 
         log = InventoryLog(firm_id=firm_id, date=date.today(),
                            log_type='IN', vehicle=vehicle)

@@ -8,6 +8,7 @@ let currentFirm = {};
 let CYLINDER_TYPES = []; // [{id, label, price}]
 let stock = {};
 let emptyStock = {};
+let pendingStock = {};
 let customers = [];
 let transactions = [];
 let inventoryLogs = [];
@@ -32,6 +33,7 @@ function updateStateFromFirmData(data) {
     CYLINDER_TYPES = data.cylinderTypes  || [];
     stock          = data.stock          || {};
     emptyStock     = data.emptyStock     || {};
+    pendingStock   = data.pendingStock   || {};
     customers      = data.customers      || [];
     transactions   = data.transactions   || [];
     inventoryLogs  = data.inventoryLogs  || [];
@@ -166,6 +168,33 @@ function renderDashboard() {
                 </div>
             </div>`;
         }).join('') || '<p class="text-slate-400 col-span-full text-sm">No products configured.</p>';
+    }
+
+    // Pending incoming
+    const pendingEl = document.getElementById('dashboard-pending-cards');
+    if (pendingEl) {
+        const pendingTypes = CYLINDER_TYPES.filter(ct => (pendingStock[ct.id] || 0) > 0);
+        if (pendingTypes.length === 0) {
+            pendingEl.innerHTML = '<p class="text-sm text-slate-400 col-span-full">No empties currently sent out.</p>';
+        } else {
+            pendingEl.innerHTML = pendingTypes.map(ct => {
+                const p = pendingStock[ct.id] || 0;
+                const f = stock[ct.id] || 0;
+                return `<div class="bg-white dark:bg-slate-900 rounded-xl p-4 border border-amber-200 dark:border-amber-800/50 shadow-sm flex items-center gap-4">
+                    <div class="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-xl">
+                        <i data-lucide="arrow-down-circle" class="text-amber-600 dark:text-amber-400 w-6 h-6"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-slate-800 dark:text-slate-200 text-sm">${ct.label}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">Filled in hand: <strong class="text-green-600 dark:text-green-400">${f}</strong></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">${p}</p>
+                        <p class="text-xs text-slate-500">pending</p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
     }
 
     // Alerts
@@ -667,18 +696,46 @@ function renderStock() {
 }
 
 function addInventoryRow(containerId) {
+    const isReceive = containerId === 'receive-filled-rows';
     const cont = document.getElementById(containerId);
     if (!cont) return;
+
+    const firstId  = CYLINDER_TYPES.length ? CYLINDER_TYPES[0].id : null;
+    const availQty = firstId
+        ? (isReceive ? (pendingStock[firstId] || 0) : (emptyStock[firstId] || 0))
+        : 0;
+    const hintColor = isReceive ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400';
+    const hintLabel = isReceive ? 'pending' : 'available empty';
+
     const opts = CYLINDER_TYPES.map(ct => `<option value="${ct.id}">${ct.label}</option>`).join('');
     const row  = document.createElement('div');
-    row.className = 'flex gap-2 items-center';
+    row.className = 'space-y-1';
     row.innerHTML = `
-        <select class="flex-1 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-200">${opts}</select>
-        <input type="number" min="1" value="1" class="w-20 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200">
-        <button type="button" onclick="this.parentElement.remove()" class="p-2 text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"><i data-lucide="x" size="14"></i></button>
+        <div class="flex gap-2 items-center">
+            <select onchange="updateInventoryRowHint(this)"
+                class="flex-1 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-200"
+                data-row-type="${isReceive ? 'receive' : 'send'}">${opts}</select>
+            <input type="number" min="1" max="${availQty || ''}" value="1"
+                class="w-20 p-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:outline-none dark:bg-slate-800 dark:text-slate-200">
+            <button type="button" onclick="this.closest('.space-y-1').remove()"
+                class="p-2 text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+                <i data-lucide="x" size="14"></i></button>
+        </div>
+        <p class="text-xs ${hintColor} pl-1 row-hint">${hintLabel}: <strong>${availQty}</strong></p>
     `;
     cont.appendChild(row);
     if (window.lucide) lucide.createIcons();
+}
+
+function updateInventoryRowHint(select) {
+    const isReceive = select.dataset.rowType === 'receive';
+    const sizeId    = select.value;
+    const qty       = isReceive ? (pendingStock[sizeId] || 0) : (emptyStock[sizeId] || 0);
+    const label     = isReceive ? 'pending' : 'available empty';
+    const hintEl    = select.closest('.space-y-1').querySelector('.row-hint');
+    const inputEl   = select.closest('.flex').querySelector('input[type="number"]');
+    if (hintEl)  hintEl.innerHTML = `${label}: <strong>${qty}</strong>`;
+    if (inputEl) inputEl.max = qty || '';
 }
 
 async function handleInventoryAction(event, type) {
@@ -686,8 +743,8 @@ async function handleInventoryAction(event, type) {
     const form      = event.target;
     const vehicle   = (form.querySelector('[name="vehicle"]')?.value || '').trim().toUpperCase();
     const contId    = type === 'OUT' ? 'send-empties-rows' : 'receive-filled-rows';
-    const rows      = document.querySelectorAll(`#${contId} > div`);
-    const items     = {};
+    const rows  = document.querySelectorAll(`#${contId} > .space-y-1`);
+    const items = {};
     rows.forEach(row => {
         const sel = row.querySelector('select');
         const qty = parseInt(row.querySelector('input[type="number"]')?.value || 0);

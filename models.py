@@ -61,6 +61,7 @@ class Stock(Base):
     product_id  = Column(Integer, ForeignKey('products.id'), nullable=False, unique=True)
     filled_qty  = Column(Integer, nullable=False, default=0)
     empty_qty   = Column(Integer, nullable=False, default=0)
+    pending_qty = Column(Integer, nullable=False, default=0)  # empties sent out, awaiting return as filled
 
     product = relationship('Product', back_populates='stock')
 
@@ -69,6 +70,7 @@ class Stock(Base):
             'product_id': self.product_id,
             'filled_qty': self.filled_qty,
             'empty_qty':  self.empty_qty,
+            'pending_qty': self.pending_qty,
         }
 
 
