@@ -11,8 +11,14 @@ from models import (
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 
-engine, Session = init_db()
-seed_db(Session)
+try:
+    engine, Session = init_db()
+    seed_db(Session)
+except Exception as e:
+    import traceback
+    print("STARTUP ERROR:", e)
+    traceback.print_exc()
+    raise
 
 
 # ---------------------------------------------------------------------------
