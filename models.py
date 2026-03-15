@@ -207,7 +207,10 @@ DEFAULT_PRODUCTS = [
 ]
 
 
-def init_db(db_path='gastrack.db'):
+def init_db(db_path=None):
+    import os
+    if db_path is None:
+        db_path = os.environ.get('DB_PATH', 'gastrack.db')
     engine = create_engine(
         f'sqlite:///{db_path}',
         connect_args={'check_same_thread': False},
