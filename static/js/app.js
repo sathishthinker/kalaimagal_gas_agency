@@ -723,7 +723,15 @@ function addInventoryRow(containerId) {
     const hintColor = isReceive ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400';
     const hintLabel = isReceive ? 'pending' : 'available empty';
 
-    const opts = CYLINDER_TYPES.map(ct => `<option value="${ct.id}">${ct.label}</option>`).join('');
+    const opts = CYLINDER_TYPES.map(ct => {
+        if (isReceive) {
+            const p = pendingStock[ct.id] || 0;
+            return `<option value="${ct.id}">${ct.label}  —  pending: ${p}</option>`;
+        } else {
+            const e = emptyStock[ct.id] || 0;
+            return `<option value="${ct.id}">${ct.label}  —  empty: ${e}</option>`;
+        }
+    }).join('');
     const row  = document.createElement('div');
     row.className = 'space-y-1';
     row.innerHTML = `
